@@ -14,7 +14,7 @@ DATA_DIR = './data/lcm'
 
 if __name__ == '__main__':
     args = get_parse_args()
-    circuit_path = '/Users/zhengyuanshi/studio/DeepCell_Dataset/deepgate_dataset/pair_graphs.npz'
+    circuit_path = '/uac/gds/zyshi21/studio/DeepCell_DAC/data/train/pair_graphs.npz'
     num_epochs = args.num_epochs
     
     print('[INFO] Parse Dataset')
@@ -23,7 +23,7 @@ if __name__ == '__main__':
     print('[INFO] Create Model and Trainer')
     model = deepcell.top_model.TopModel(
         args, 
-        dc_ckpt='./ckpt/gcn.pth', 
+        dc_ckpt='./ckpt/dc.pth', 
         dg_ckpt='./ckpt/dg_1113.pth'
     )
     

@@ -114,10 +114,12 @@ class TopModel(nn.Module):
             mcm_pm_tokens = torch.cat([mcm_pm_tokens, batch_pred_pm_tokens], dim=0)
             batch_pred_aig_tokens = batch_predicted_tokens[batch_pm_tokens_masked.shape[0]:, :]
             mcm_aig_tokens = torch.cat([mcm_aig_tokens, batch_pred_aig_tokens], dim=0)
-        
+            
+        mcm_pm_hf = mcm_pm_tokens[:, self.args.dim_hidden:]
+        mcm_aig_hf = mcm_aig_tokens[:, self.args.dim_hidden:]
         # Predict PM probability 
-        pm_prob = self.deepcell.pred_prob(pm_hf)
-        aig_prob = self.deepgate.pred_prob(aig_hf)
+        pm_prob = self.deepcell.pred_prob(mcm_pm_hf)
+        aig_prob = self.deepgate.pred_prob(mcm_aig_hf)
         
         return mcm_pm_tokens, mask_indices, pm_tokens, pm_prob, aig_prob
         

@@ -68,6 +68,8 @@ def get_parse_args():
     parser.add_argument('--tf_layer', type=int, default=4)
     parser.add_argument('--mask_ratio', type=float, default=0.15)
     parser.add_argument('--k_hop', type=int, default=4)
+    parser.add_argument('--linformer', action='store_true', default=False,
+                             help='use linformer instead of transformer')
     
     args = parser.parse_args()
 

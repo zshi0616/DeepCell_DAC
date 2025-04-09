@@ -36,8 +36,16 @@ class TopModel(nn.Module):
         self.deepgate.load(dg_ckpt)
         
         # Transformer
-        tf_layer = nn.TransformerEncoderLayer(d_model=args.dim_hidden * 2, nhead=args.tf_head, batch_first=True)
-        self.mask_tf = nn.TransformerEncoder(tf_layer, num_layers=args.tf_layer)
+        if self.args.linformer:
+            from linformer import Linformer
+            self.mask_tf = Linformer(
+                dim = args.dim_hidden * 2, k=args.dim_hidden*2, 
+                heads = args.tf_head, depth = args.tf_layer, seq_len=8192, 
+                one_kv_head=True, share_kv=True, 
+            )
+        else:
+            tf_layer = nn.TransformerEncoderLayer(d_model=args.dim_hidden * 2, nhead=args.tf_head, batch_first=True)
+            self.mask_tf = nn.TransformerEncoder(tf_layer, num_layers=args.tf_layer)
         
         # Token masking
         self.mask_token = nn.Parameter(torch.randn(1, args.dim_hidden))  # learnable mask token
@@ -61,6 +69,8 @@ class TopModel(nn.Module):
         # Extract k-hop subgraph
         current_nodes = mask_indices
         for hop in range(k_hop):
+            if len(current_nodes) == 0:
+                break
             fanin_nodes, _ = subgraph(current_nodes, G.edge_index, dim=1)
             fanin_nodes = torch.unique(fanin_nodes[0])
             current_nodes = fanin_nodes

@@ -18,7 +18,7 @@ if __name__ == '__main__':
     num_epochs = args.num_epochs
     
     print('[INFO] Parse Dataset')
-    dataset = deepcell.NpzParser_Pair(DATA_DIR, circuit_path, random_sample=0.1)
+    dataset = deepcell.NpzParser_Pair(DATA_DIR, circuit_path)
     train_dataset, val_dataset = dataset.get_dataset()
     print('[INFO] Create Model and Trainer')
     model = deepcell.top_model.TopModel(

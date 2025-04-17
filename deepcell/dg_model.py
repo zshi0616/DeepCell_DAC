@@ -48,6 +48,10 @@ class Model(nn.Module):
 
         # Readout 
         self.readout_prob = MLP(self.dim_hidden, self.dim_mlp, 1, num_layer=3, p_drop=0.2, norm_layer='batchnorm', act_layer='relu')
+        self.connect_head = MLP(
+                    dim_in=self.dim_hidden*2, dim_hidden=self.dim_mlp, dim_pred=3, 
+                    num_layer=3, p_drop=0.2, norm_layer='batchnorm', act_layer='relu'
+                )
 
         # # consider the embedding for the LSTM/GRU model initialized by non-zeros
         # self.one = torch.ones(1)
@@ -90,7 +94,6 @@ class Model(nn.Module):
                 l_and_node = G.aig_forward_index[layer_mask & and_mask]
                 if l_and_node.size(0) > 0:
                     and_edge_index, and_edge_attr = subgraph(l_and_node, edge_index, dim=1)
-                    
                     
                     # Update structure hidden state
                     msg = self.aggr_and_strc(hs, and_edge_index, and_edge_attr)
@@ -135,6 +138,13 @@ class Model(nn.Module):
         prob = self.readout_prob(hf)
         prob = torch.clamp(prob, min=0.0, max=1.0)
         return prob
+    
+    def pred_connect(self, g, hs):
+        gates = hs[g.aig_connect_pair_index]
+        gates = gates.permute(1,2,0).reshape(-1,self.dim_hidden*2)
+        pred_connect = self.connect_head(gates)
+        return pred_connect
+        
     
     def load(self, model_path):
         checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)

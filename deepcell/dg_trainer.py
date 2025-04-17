@@ -125,31 +125,43 @@ class Trainer():
             return False
         
     def run_batch(self, batch):
-        hs, hf = self.model(batch)
+        g = batch.clone()
+        g.gate = batch.aig_gate
+        g.forward_level = batch.aig_forward_level
+        g.backward_level = batch.aig_backward_level
+        g.forward_index = batch.aig_forward_index
+        g.backward_index = batch.aig_backward_index
+        g.edge_index = batch.aig_edge_index
+        g.batch = batch.aig_batch
+        
+        hs, hf = self.model(g)
         prob = self.model.pred_prob(hf)
         # connect = self.model.pred_connect(batch, hs)
         
         # Task 1: Probability Prediction 
         prob_loss = self.reg_loss(prob, batch['aig_prob'].unsqueeze(1))
         
-        # # Task 2: Functional Similarity 
-        # node_a = hf[batch['tt_pair_index'][0]]
-        # node_b = hf[batch['tt_pair_index'][1]]
-        # emb_dis = 1 - torch.cosine_similarity(node_a, node_b, eps=1e-8)
-        # emb_dis_z = zero_normalization(emb_dis)
-        # tt_dis_z = zero_normalization(batch['tt_dis'])
-        # func_loss = self.reg_loss(emb_dis_z, tt_dis_z)
-        # # Task 3: Structural Prediction
+        # Task 2: Functional Similarity 
+        if len(batch['aig_tt']) != 0:
+            node_a = hf[batch['aig_tt_pair_index'][0]]
+            node_b = hf[batch['aig_tt_pair_index'][1]]
+            emb_dis = 1 - torch.cosine_similarity(node_a, node_b, eps=1e-8)
+            emb_dis_z = zero_normalization(emb_dis)
+            tt_dis_z = zero_normalization(batch['aig_tt'])
+            func_loss = self.reg_loss(emb_dis_z, tt_dis_z)
+        else:
+            func_loss = torch.tensor(0.0).to(self.device)
+        # Task 3: Structural Prediction
         # con_loss = self.ce_loss(connect, batch['connect_label'].long())
-        # # loss_status = {
-        # #     'prob_loss': prob_loss, 
-        # #     'rc_loss': rc_loss,
-        # #     'func_loss': func_loss
-        # # }
+        # loss_status = {
+        #     'prob_loss': prob_loss, 
+        #     'rc_loss': rc_loss,
+        #     'func_loss': func_loss
+        # }
 
         loss_status = {
             'prob_loss': prob_loss, 
-            # 'func_loss': func_loss, 
+            'func_loss': func_loss, 
             # 'con_loss': con_loss, 
         }
         
@@ -206,12 +218,13 @@ class Trainer():
                     #     loss_status['rc_loss'] * self.loss_weight[1] + \
                     #     loss_status['func_loss'] * self.loss_weight[2]
                     
-                    loss = loss_status['prob_loss'] 
+                    loss = loss_status['prob_loss'] * self.loss_weight[0] + \
+                        loss_status['func_loss'] * self.loss_weight[1] 
                     # * self.loss_weight[0] + \
                         # loss_status['func_loss'] * self.loss_weight[1] + \
                         # loss_status['con_loss'] * self.loss_weight[2]
                     
-                    loss /= sum(self.loss_weight)
+                    loss /= (self.loss_weight[0] + self.loss_weight[1])
                     loss = loss.mean()
                     if phase == 'train':
                         self.optimizer.zero_grad()
@@ -220,7 +233,7 @@ class Trainer():
                     # Print and save log
                     batch_time.update(time.time() - time_stamp)
                     prob_loss_stats.update(loss_status['prob_loss'].item())
-                    # func_loss_stats.update(loss_status['func_loss'].item())
+                    func_loss_stats.update(loss_status['func_loss'].item())
                     # con_loss_stats.update(loss_status['con_loss'].item())
                     # acc = get_function_acc(batch, hf)
                     acc = 0
@@ -233,8 +246,9 @@ class Trainer():
                         Bar.suffix += '|Net: {:.2f}s '.format(batch_time.avg)
                         bar.next()
                 if phase == 'train':
-                    self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(self.model_epoch)))
                     self.save(os.path.join(self.log_dir, 'model_last.pth'))
+                    if self.model_epoch % 10 == 0:
+                        self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(self.model_epoch)))
                 if self.local_rank == 0:
                     # self.logger.write('{}| Epoch: {:}/{:} |Prob: {:.4f} |RC: {:.4f} |Func: {:.4f} |ACC: {:.4f} |Net: {:.2f}s\n'.format(
                     #     phase, epoch, num_epoch, prob_loss_stats.avg, con_loss_stats.avg, func_loss_stats.avg, acc_stats.avg, batch_time.avg))

@@ -16,26 +16,24 @@ from torch_geometric.loader import DataLoader
 from .utils.data_utils import read_npz_file
 from .utils.aiger_utils import aig_to_xdata
 from .utils.circuit_utils import get_fanin_fanout, read_file, add_node_index, feature_gen_connect
-from .utils.dataset_utils import *
+from .utils.dataset_utils import parse_pyg_mlpgate
 
 class NpzParser_Pair():
     '''
         Parse the npz file into an inmemory torch_geometric.data.Data object
     '''
-    def __init__(self, data_dir, circuit_path, \
+    def __init__(self, args, data_dir, aig_path="", pm_path_list=[], \
                  random_shuffle=True, trainval_split=0.9, random_sample=1.0): 
+        self.args = args
         self.data_dir = data_dir
-        dataset = self.inmemory_dataset(data_dir, circuit_path)
+        dataset = self.inmemory_dataset(args, data_dir, aig_path, pm_path_list, debug=args.debug)
         if random_shuffle:
             perm = torch.randperm(len(dataset))
             dataset = dataset[perm]
-        data_len = len(dataset)
-        training_cutoff = int(data_len * trainval_split)
+        max_length = int(len(dataset) * random_sample)
+        training_cutoff = int(max_length * trainval_split)
         self.train_dataset = dataset[:training_cutoff]
-        self.val_dataset = dataset[training_cutoff:]
-        if random_sample < 1.0:
-            self.train_dataset = self.train_dataset[:int(len(self.train_dataset) * random_sample)]
-            self.val_dataset = self.val_dataset[:int(len(self.val_dataset) * random_sample)]
+        self.val_dataset = dataset[training_cutoff:max_length]
         # self.train_dataset = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=num_workers)
         # self.val_dataset = DataLoader(self.val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
         
@@ -43,12 +41,16 @@ class NpzParser_Pair():
         return self.train_dataset, self.val_dataset
     
     class inmemory_dataset(InMemoryDataset):
-        def __init__(self, root, circuit_path, transform=None, pre_transform=None, pre_filter=None):
-            self.name = 'npz_inmm_dataset'
+        def __init__(self, args, root, aig_path, pm_path_list, debug=False, transform=None, pre_transform=None, pre_filter=None):
+            self.name = 'inmemory'
             self.root = root
-            self.circuit_path = circuit_path
+            self.debug = debug
+            self.aig_path = aig_path
+            self.pm_path_list = pm_path_list
+            self.max_size = args.max_token_size
             super().__init__(root, transform, pre_transform, pre_filter)
             self.data, self.slices = torch.load(self.processed_paths[0])
+        
         
         @property
         def raw_dir(self):
@@ -57,12 +59,17 @@ class NpzParser_Pair():
         @property
         def processed_dir(self):
             name = 'inmemory'
+            if self.max_size > 0:
+                name += '_max_{}'.format(self.max_size)
+            if self.debug:
+                name += '_debug'
+            print('[INFO] Processed dataset name: ', name)
             return osp.join(self.root, name)
 
         @property
         def raw_file_names(self) -> List[str]:
-            return [self.circuit_path]
-
+            return [self.aig_path]
+        
         @property
         def processed_file_names(self) -> str:
             return ['data.pt']
@@ -73,47 +80,88 @@ class NpzParser_Pair():
         def process(self):
             data_list = []
             tot_pairs = 0
-            circuits = read_npz_file(self.circuit_path)['circuits'].item()
+            assert os.path.exists(self.aig_path)
+            print('[INFO] Parse AIG circuits')
+            aigs = read_npz_file(self.aig_path)['circuits'].item()
             
-            for cir_idx, cir_name in enumerate(circuits):
-                print('Parse circuit: {}, {:} / {:} = {:.2f}%'.format(cir_name, cir_idx+1, len(circuits), cir_idx+1 / len(circuits) * 100))
-                
-                x = circuits[cir_name]["x"]
-                edge_index = circuits[cir_name]["edge_index"]
-                is_pi = circuits[cir_name]["is_pi"]
-                no_edges = circuits[cir_name]["no_edges"]
-                prob = circuits[cir_name]["prob"]
-                backward_level = circuits[cir_name]["backward_level"]
-                forward_index = circuits[cir_name]["forward_index"]
-                forward_level = circuits[cir_name]["forward_level"]
-                no_nodes = circuits[cir_name]["no_nodes"]
-                backward_index = circuits[cir_name]["backward_index"]
-                
-                tt_dis = None
-                tt_pair_index = None
-                connect_label = None
-                connect_pair_index = None
+            for pm_path in self.pm_path_list:
+                assert os.path.exists(pm_path)
+                lib = pm_path.split('/')[-1].replace('.npz', '').replace('iccad_', '')
+                print('[INFO] Parse PM circuits in stdlib: ', lib)
+                pms = read_npz_file(pm_path)['circuits'].item()
+            
+                for pm_idx, pm_name in enumerate(pms):
+                    print('Parse circuit: {}, {:} / {:} = {:.2f}%'.format(pm_name, pm_idx+1, len(pms), (pm_idx+1) / len(pms) * 100))
+                    pm = pms[pm_name]
+                    aig_name = pm_name + '.aig'
+                    if aig_name not in aigs:
+                        print('AIG circuit not found: ', pm_name)
+                        continue
+                    aig = aigs[aig_name]
+                    
+                    if self.max_size > 0 and len(aig['x']) + len(pm['x']) > self.max_size:
+                        print(f'Skipping {pm_name} due to size limit')
+                        continue
+                                        
+                    x = pm["x"]
+                    edge_index = pm["edge_index"]
+                    is_pi = pm["is_pi"]
+                    no_edges = pm["no_edges"]
+                    no_nodes = pm["no_nodes"]
+                    prob = pm["prob"]
+                    backward_level = pm["backward_level"]
+                    forward_index = pm["forward_index"]
+                    forward_level = pm["forward_level"]
+                    backward_index = pm["backward_index"]
+                    tt_dis = pm['tt_dis']
+                    tt_pair_index = pm['tt_pair_index']
+                    connect_label = pm['connect_label']
+                    connect_pair_index = pm['connect_pair_index']
 
-                graph = parse_pyg_mlpgate(
-                    x, edge_index, tt_dis, tt_pair_index, is_pi,
-                    prob, no_edges, connect_label, connect_pair_index,
-                    backward_level, forward_index, forward_level,
-                    no_nodes, backward_index, 
-                    no_label=True
-                )
-                
-                graph.aig_x = torch.tensor(circuits[cir_name]["aig_x"])
-                graph.aig_edge_index = torch.tensor(circuits[cir_name]["aig_edge_index"], dtype=torch.long).contiguous()
-                graph.aig_prob = torch.tensor(circuits[cir_name]["aig_prob"])
-                graph.aig_forward_index = torch.tensor(circuits[cir_name]["aig_forward_index"])
-                graph.aig_forward_level = torch.tensor(circuits[cir_name]["aig_forward_level"])
-                graph.aig_backward_index = torch.tensor(circuits[cir_name]["aig_backward_index"])
-                graph.aig_backward_level = torch.tensor(circuits[cir_name]["aig_backward_level"])
-                graph.aig_gate = torch.tensor(circuits[cir_name]["aig_gate"])
-                graph.aig_batch = torch.zeros(len(graph.aig_x), dtype=torch.long)
-                
-                graph.name = cir_name
-                data_list.append(graph)
+                    graph = parse_pyg_mlpgate(
+                        x, edge_index, tt_dis, tt_pair_index, is_pi,
+                        prob, no_edges, connect_label, connect_pair_index,
+                        backward_level, forward_index, forward_level,
+                        no_nodes, backward_index, 
+                        no_label=False
+                    )
+                    
+                    graph.aig_x = torch.tensor(aig["x"])
+                    graph.aig_edge_index = torch.tensor(aig["edge_index"], dtype=torch.long).contiguous()
+                    graph.aig_prob = torch.tensor(aig["prob"])
+                    graph.aig_forward_index = torch.tensor(aig["forward_index"])
+                    graph.aig_forward_level = torch.tensor(aig["forward_level"])
+                    graph.aig_backward_index = torch.tensor(aig["backward_index"])
+                    graph.aig_backward_level = torch.tensor(aig["backward_level"])
+                    graph.aig_batch = torch.zeros(len(graph.aig_x), dtype=torch.long)
+                    graph.aig_gate = torch.zeros((len(graph.aig_x), 1), dtype=torch.float)
+                    graph.aig_tt = torch.tensor(aig["tt_dis"])
+                    graph.aig_tt_pair_index = torch.tensor(aig["tt_pair_index"])
+                    for idx in range(len(aig["x"])):
+                        if aig["x"][idx][1] == 1:
+                            graph.aig_gate[idx] = 1
+                        elif aig["x"][idx][2] == 1:
+                            graph.aig_gate[idx] = 2
+                    aig_connect_label = aig['connect_label']
+                    aig_connect_pair_index = aig['connect_pair_index']
+                    if len(aig_connect_pair_index) == 0 or aig_connect_pair_index.shape[1] == 0:
+                        aig_connect_pair_index = aig_connect_pair_index.reshape((2, 0))
+                    # Random sample 2*len(aig_x)
+                    if aig_connect_pair_index.shape[1] > len(aig['x']) * 2:
+                        perm = torch.randperm(len(aig_connect_pair_index))
+                        aig_connect_pair_index = aig_connect_pair_index[:, perm[:len(aig['x']) * 2]]
+                        aig_connect_label = aig_connect_label[perm[:len(aig['x']) * 2]]
+                    
+                    graph.aig_connect_label = aig_connect_label
+                    graph.aig_connect_pair_index = aig_connect_pair_index
+                    
+                    graph.name = '{}_{}'.format(lib, pm_name)
+                    data_list.append(graph)
+                    
+                    if self.debug and len(data_list) > 1000:
+                        break
+                if self.debug and len(data_list) > 1000:
+                    break
                 
             data, slices = self.collate(data_list)
             torch.save((data, slices), self.processed_paths[0])

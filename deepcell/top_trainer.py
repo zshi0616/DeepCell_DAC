@@ -207,8 +207,9 @@ class TopTrainer():
                         Bar.suffix += '|Net: {:.2f}s '.format(batch_time.avg)
                         bar.next()
                 if phase == 'train':
-                    self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(self.model_epoch)))
                     self.save(os.path.join(self.log_dir, 'model_last.pth'))
+                    if self.model_epoch % 10 == 0:
+                        self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(self.model_epoch)))
                 if self.local_rank == 0:
                     self.logger.write('{}| Epoch: {:}/{:} |Prob: {:.4f} |MCM: {:.4f} |AIG: {:.4f} |Net: {:.2f}s\n'.format(
                         phase, epoch, num_epoch, pm_prob_loss_stats.avg, mcm_loss_stats.avg, aig_prob_loss_stats.avg, batch_time.avg))

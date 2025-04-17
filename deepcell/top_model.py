@@ -119,7 +119,12 @@ class TopModel(nn.Module):
             batch_pm_tokens_masked = pm_tokens_masked[G.batch == batch_id]
             batch_aig_tokens = aig_tokens[G.aig_batch == batch_id]
             batch_all_tokens = torch.cat([batch_pm_tokens_masked, batch_aig_tokens], dim=0)
-            batch_predicted_tokens = self.mask_tf(batch_all_tokens)
+            if self.args.linformer:
+                batch_all_tokens = batch_all_tokens.unsqueeze(0)
+                batch_predicted_tokens = self.mask_tf(batch_all_tokens)
+                batch_predicted_tokens = batch_predicted_tokens.squeeze(0)
+            else:
+                batch_predicted_tokens = self.mask_tf(batch_all_tokens)
             batch_pred_pm_tokens = batch_predicted_tokens[:batch_pm_tokens_masked.shape[0], :]
             mcm_pm_tokens = torch.cat([mcm_pm_tokens, batch_pred_pm_tokens], dim=0)
             batch_pred_aig_tokens = batch_predicted_tokens[batch_pm_tokens_masked.shape[0]:, :]

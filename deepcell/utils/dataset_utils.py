@@ -23,8 +23,12 @@ class OrderedData(Data):
         self.backward_index = backward_index
     
     def __inc__(self, key, value, *args, **kwargs):
-        if 'index' in key or 'face' in key:
-            return self.num_nodes
+        if 'aig' in key:
+            if 'index' in key or 'face' in key:
+                return len(self.aig_x)
+        else:
+            if 'index' in key or 'face' in key:
+                return len(self.x)
         if key == 'aig_batch': 
             return 1
         else:
@@ -35,7 +39,7 @@ class OrderedData(Data):
             return 0
         elif 'edge_index' in key:
             return 1
-        elif key == 'tt_pair_index' or key == 'connect_pair_index':
+        elif 'tt_pair_index' in key or 'connect_pair_index' in key:
             return 1
         else:
             return 0
@@ -80,8 +84,8 @@ def parse_pyg_mlpgate(x, edge_index, tt_dis, tt_pair_index, is_pi, \
     graph.use_edge_attr = False
     
     if not no_label:
-        graph.connect_label = connect_label
-        graph.connect_pair_index = connect_pair_index
+        graph.connect_label = torch.tensor(connect_label)
+        graph.connect_pair_index = torch.tensor(connect_pair_index)
 
     graph.gate = torch.tensor(x[:, 1:2], dtype=torch.float)
     graph.prob = torch.tensor(prob).reshape((len(x)))

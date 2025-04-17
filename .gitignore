@@ -10,6 +10,7 @@ dist
 
 exp
 tmp
+npz
 data
 
 tmp.py

@@ -6,7 +6,7 @@ def get_parse_args():
 
     # basic experiment setting
     parser.add_argument('--exp_id', default='train')
-    parser.add_argument('--debug', type=int, default=0)
+    parser.add_argument('--debug', action='store_true', default=False)
     parser.add_argument('--load_model', default='',
                              help='path to pretrained model')
     parser.add_argument('--resume', action='store_true',
@@ -19,7 +19,7 @@ def get_parse_args():
     parser.add_argument('--disable_encode', action='store_true', default=False)
     
     # GNN
-    parser.add_argument('--gnn', default='dg', choices=['dg', 'gat', 'gcn'],)
+    parser.add_argument('--gnn', default='dg', choices=['dg', 'gat', 'gcn', 'polargate'],)
 
     # system
     parser.add_argument('--gpus', default='-1', 
@@ -47,6 +47,8 @@ def get_parse_args():
     # dataset settings
     parser.add_argument('--data_dir', default='./data/train',
                              type=str, help='the path to the dataset')
+    parser.add_argument('--max_token_size', default=4096, type=int,
+                             help='max token size for each circuit pair')
 
     # train and val
     parser.add_argument('--lr', type=float, default=1.0e-4, 
@@ -77,10 +79,16 @@ def get_parse_args():
     args.gpus = [int(gpu) for gpu in args.gpus.split(',')]
     args.lr_step = [int(i) for i in args.lr_step.split(',')]
     
-    if len(args.gpus) == 1 or args.gpus[0] == -1:
+    if len(args.gpus) == 1:
         args.distributed = False
+        if args.gpus[0] == -1:
+            args.device = 'cpu'
+        else:
+            args.device = 'cuda:{}'.format(args.gpus[0])
     else:
         args.distributed = True
+        args.device = 'distributed'
+        
 
 
     # update data settings
@@ -90,7 +98,7 @@ def get_parse_args():
 
     if args.debug > 0:
         args.num_workers = 0
-        args.batch_size = 1
+        # args.batch_size = 1
         args.gpus = [args.gpus[0]]
 
     # dir

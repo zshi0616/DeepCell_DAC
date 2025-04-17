@@ -127,30 +127,35 @@ class Trainer():
     def run_batch(self, batch):
         hs, hf = self.model(batch)
         prob = self.model.pred_prob(hf)
-        # connect = self.model.pred_connect(batch, hs)
+        connect = self.model.pred_connect(batch, hs)
         # Task 1: Probability Prediction 
         prob_loss = self.reg_loss(prob, batch['prob'].unsqueeze(1))
-        prob_loss = self.reg_loss(prob, batch['prob'].unsqueeze(1))
         # Task 2: Functional Similarity 
-        # node_a = hf[batch['tt_pair_index'][0]]
-        # node_b = hf[batch['tt_pair_index'][1]]
-        # emb_dis = 1 - torch.cosine_similarity(node_a, node_b, eps=1e-8)
-        # emb_dis_z = zero_normalization(emb_dis)
-        # tt_dis_z = zero_normalization(batch['tt_dis'])
-        # func_loss = self.reg_loss(emb_dis_z, tt_dis_z)
+        if len(batch['tt_dis']) != 0:
+            node_a = hf[batch['tt_pair_index'][0]]
+            node_b = hf[batch['tt_pair_index'][1]]
+            emb_dis = 1 - torch.cosine_similarity(node_a, node_b, eps=1e-8)
+            emb_dis_z = zero_normalization(emb_dis)
+            tt_dis_z = zero_normalization(batch['tt_dis'])
+            func_loss = self.reg_loss(emb_dis_z, tt_dis_z)
+        else:
+            func_loss = torch.tensor(0.0).to(self.device)
         # Task 3: Structural Prediction
-        # con_loss = self.ce_loss(connect, batch['connect_label'].long())
-        # loss_status = {
-        #     'prob_loss': prob_loss, 
-        #     'rc_loss': rc_loss,
-        #     'func_loss': func_loss
-        # }
+        if len(batch['connect_label']) != 0:
+            con_loss = self.ce_loss(connect, batch['connect_label'].long())
+        else:
+            con_loss = torch.tensor(0.0).to(self.device)
 
         loss_status = {
             'prob_loss': prob_loss, 
-            'func_loss': prob_loss, 
-            'con_loss': prob_loss, 
+            'func_loss': func_loss, 
+            'con_loss': con_loss, 
         }
+        
+        if torch.isnan(func_loss).any(): 
+            loss_status['func_loss'] = torch.tensor(0.0).to(self.device)
+        if torch.isnan(con_loss).any(): 
+            loss_status['con_loss'] = torch.tensor(0.0).to(self.device)
         
         return hs, hf, loss_status
     
@@ -221,23 +226,24 @@ class Trainer():
                     func_loss_stats.update(loss_status['func_loss'].item())
                     con_loss_stats.update(loss_status['con_loss'].item())
                     # acc = get_function_acc(batch, hf)
-                    acc = 0
-                    acc_stats.update(acc)
+                    # acc = 0
+                    # acc_stats.update(acc)
                     if self.local_rank == 0:
                         Bar.suffix = '[{:}/{:}]|Tot: {total:} |ETA: {eta:} '.format(iter_id, len(dataset), total=bar.elapsed_td, eta=bar.eta_td)
                         # Bar.suffix += '|Prob: {:.4f} |RC: {:.4f} |Func: {:.4f} '.format(prob_loss_stats.avg, con_loss_stats.avg, func_loss_stats.avg)
                         Bar.suffix += '|Prob: {:.4f} |Func: {:.4f} |Con: {:.4f} '.format(prob_loss_stats.avg, func_loss_stats.avg, con_loss_stats.avg)
-                        Bar.suffix += '|Acc: {:.2f}%% '.format(acc*100)
+                        # Bar.suffix += '|Acc: {:.2f}%% '.format(acc*100)
                         Bar.suffix += '|Net: {:.2f}s '.format(batch_time.avg)
                         bar.next()
-                if phase == 'train' and self.model_epoch % 10 == 0:
-                    self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(self.model_epoch)))
+                if phase == 'train':
                     self.save(os.path.join(self.log_dir, 'model_last.pth'))
+                    if self.model_epoch % 10 == 0:
+                        self.save(os.path.join(self.log_dir, 'model_{:}.pth'.format(self.model_epoch)))
                 if self.local_rank == 0:
                     # self.logger.write('{}| Epoch: {:}/{:} |Prob: {:.4f} |RC: {:.4f} |Func: {:.4f} |ACC: {:.4f} |Net: {:.2f}s\n'.format(
                     #     phase, epoch, num_epoch, prob_loss_stats.avg, con_loss_stats.avg, func_loss_stats.avg, acc_stats.avg, batch_time.avg))
-                    self.logger.write('{}| Epoch: {:}/{:} |Prob: {:.4f} |Func: {:.4f} |ACC: {:.4f} |Net: {:.2f}s\n'.format(
-                        phase, epoch, num_epoch, prob_loss_stats.avg, func_loss_stats.avg, acc_stats.avg, batch_time.avg))
+                    self.logger.write('{}| Epoch: {:}/{:} |Prob: {:.4f} |Func: {:.4f} |Net: {:.2f}s\n'.format(
+                        phase, epoch, num_epoch, prob_loss_stats.avg, func_loss_stats.avg, batch_time.avg))
                     bar.finish()
             
             # Learning rate decay

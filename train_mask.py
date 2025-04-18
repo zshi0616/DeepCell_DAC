@@ -13,14 +13,14 @@ from deepcell.pg_model import Model as PolarGate
 import deepgate as dg
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-DATA_DIR = './data/lcm'
+DATA_DIR = './data/lcm_sample'
 
 if __name__ == '__main__':
     args = get_parse_args()
     num_epochs = args.num_epochs
     
     print('[INFO] Parse Dataset')
-    dataset = deepcell.NpzParser_Pair(args, DATA_DIR, random_sample=0.05)
+    dataset = deepcell.NpzParser_Pair(args, DATA_DIR, random_sample=1)
     train_dataset, val_dataset = dataset.get_dataset()
     print('[INFO] Create Model and Trainer')
     model = deepcell.top_model.TopModel(

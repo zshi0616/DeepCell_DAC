@@ -10,5 +10,5 @@ python3 -m torch.distributed.launch --nproc_per_node=$NUM_PROC --master_port $PO
  --mask_ratio $MASK \
  --k_hop $HOP \
  --linformer \
- --gpus $GPUS 
+ --gpus $GPUS --resume 
 

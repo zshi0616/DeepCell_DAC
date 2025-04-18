@@ -158,9 +158,9 @@ class NpzParser_Pair():
                     graph.name = '{}_{}'.format(lib, pm_name)
                     data_list.append(graph)
                     
-                    if self.debug and len(data_list) > 1000:
+                    if self.debug and len(data_list) > 100:
                         break
-                if self.debug and len(data_list) > 1000:
+                if self.debug and len(data_list) > 100:
                     break
                 
             data, slices = self.collate(data_list)

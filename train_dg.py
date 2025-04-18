@@ -12,7 +12,7 @@ from deepcell.dg_trainer import Trainer as DGTrainer
 import deepgate as dg
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-DATA_DIR = './data/lcm'
+DATA_DIR = './data/lcm_sample'
 checkpoint = './ckpt/dg2_default.pth'
 
 if __name__ == '__main__':

@@ -72,6 +72,8 @@ def get_parse_args():
     parser.add_argument('--k_hop', type=int, default=4)
     parser.add_argument('--linformer', action='store_true', default=False,
                              help='use linformer instead of transformer')
+    parser.add_argument('--mask_aig', action='store_true', default=False,
+                                help='mask aig instead of nodes')
     
     args = parser.parse_args()
 

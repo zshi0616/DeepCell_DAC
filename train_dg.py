@@ -26,7 +26,7 @@ if __name__ == '__main__':
     train_dataset, val_dataset = dataset.get_dataset()
     print('[INFO] Dataset Size Train: {:} / Test: {:}'.format(len(train_dataset), len(val_dataset)))
     
-    trainer = DGTrainer(args, model, distributed=args.distributed, training_id=args.exp_id)
+    trainer = DGTrainer(args, model, distributed=args.distributed, training_id=args.exp_id, device=args.device)
     if args.resume:
         trainer.resume()
     # trainer.set_training_args(loss_weight=[1.0, 0.0, 1.0], lr=1e-4, lr_step=80)

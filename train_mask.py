@@ -9,7 +9,6 @@ from config import get_parse_args
 import deepcell.top_model
 import deepcell.top_trainer 
 from torch_geometric.data import Data
-from deepcell.pg_model import Model as PolarGate
 import deepgate as dg
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -26,7 +25,8 @@ if __name__ == '__main__':
     model = deepcell.top_model.TopModel(
         args, 
         dc_ckpt='./ckpt/dc_0413.pth', 
-        dg_ckpt='./ckpt/dg_0417.pth'
+        # dg_ckpt='./ckpt/dg_0417.pth'
+        dg_ckpt = '/home/xqgrp/shizhengyuan/studio/PolarGate/ft_saved/prob_PolarGate_processed_PolarGate_9_state_dict.pth'
     )
     
     trainer = deepcell.top_trainer.TopTrainer(args, model, distributed=args.distributed, device=args.device)

@@ -16,6 +16,7 @@ from .arch.gcn_conv import AggConv
 
 from .dc_model import Model as DeepCell
 from .dg_model import Model as DeepGate
+from .pg_model import PolarGate
 
 class TopModel(nn.Module):
     def __init__(self, 
@@ -32,7 +33,10 @@ class TopModel(nn.Module):
         self.deepcell.load(dc_ckpt)
         
         # DeepGate 
-        self.deepgate = DeepGate(dim_hidden=args.dim_hidden)
+        if args.gnn == 'pg':
+            self.deepgate = PolarGate(args, in_dim=3, out_dim=args.dim_hidden)
+        else:
+            self.deepgate = DeepGate(dim_hidden=args.dim_hidden)
         self.deepgate.load(dg_ckpt)
         
         # Transformer
@@ -150,11 +154,11 @@ class TopModel(nn.Module):
         aig_prob = self.deepgate.pred_prob(mcm_aig_hf)
         
         if self.args.mask_aig:
-            gt_tokens = aig_tokens[mask_indices]
-            mcm_tokens = mcm_aig_tokens[mask_indices]
+            gt_tokens = aig_tokens
+            mcm_tokens = mcm_aig_tokens
         else:
-            gt_tokens = pm_tokens[mask_indices]
-            mcm_tokens = mcm_pm_tokens[mask_indices]
+            gt_tokens = pm_tokens
+            mcm_tokens = mcm_pm_tokens
         
         return mcm_tokens, mask_indices, gt_tokens, pm_prob, aig_prob
         

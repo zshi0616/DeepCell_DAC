@@ -19,7 +19,7 @@ def get_parse_args():
     parser.add_argument('--disable_encode', action='store_true', default=False)
     
     # GNN
-    parser.add_argument('--gnn', default='dg', choices=['dg', 'gat', 'gcn', 'polargate'],)
+    parser.add_argument('--gnn', default='dg', choices=['dg', 'gat', 'gcn', 'pg'],)
 
     # system
     parser.add_argument('--gpus', default='-1', 
